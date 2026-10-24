@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2Cars Skill Arcade</title>
+  <meta name="description" content="A free two-lane reflex arcade. Dodge obstacles, collect coins, and beat your personal best. No signup required.">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar glass">
+      <div>
+        <h1>2Cars: Skill Arcade</h1>
+        <p class="sub">Fast reflexes, real progression, endless challenge.</p>
+      </div>
+      <nav class="quick-links">
+        <a href="about.html">About</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </header>
+
+    <main class="layout">
+      <section class="game-panel glass">
+        <div class="hud">
+          <div class="stat"><span>Score</span><strong id="score">0</strong></div>
+          <div class="stat"><span>Coins</span><strong id="coins">0</strong></div>
+          <div class="stat"><span>Best</span><strong id="bestScore">0</strong></div>
+          <div class="stat"><span>Level</span><strong id="level">1</strong></div>
+        </div>
+
+        <div class="progress-wrap">
+          <span>Level Progress</span>
+          <div class="progress"><div id="levelFill" class="fill"></div></div>
+        </div>
+
+        <p class="instructions">Switch lanes with ← →, A / D, or the buttons below. Avoid pink triangles and collect gold squares. Space pauses.</p>
+        <canvas id="gameCanvas" width="420" height="720" aria-label="2Cars game"></canvas>
+
+        <p id="storageNotice" role="status"></p>
+        <p id="runStatus" role="status" aria-live="polite">Ready for a run? Your best scores stay on this device.</p>
+        <div class="controls">
+          <button id="startBtn" class="btn primary">Start Run</button>
+          <button id="soundBtn" class="btn" aria-pressed="false">Sound: Off</button>
+          <button id="pauseBtn" class="btn">Pause</button>
+          <button id="leftBtn" class="btn touch">⬅ Left</button>
+          <button id="rightBtn" class="btn touch">Right ➡</button>
+        </div>
+      </section>
+
+      <aside class="side-stack">
+        <section class="card glass">
+          <h2>Daily Reward</h2>
+          <p id="dailyText">Claim your loyalty bonus every day.</p>
+          <button id="dailyBtn" class="btn primary">Claim Reward</button>
+        </section>
+
+        <section class="card glass">
+          <h2>Shop</h2>
+          <div class="tabs">
+            <button data-tab="skins" class="tab active">Skins</button>
+            <button data-tab="backgrounds" class="tab">Backgrounds</button>
+            <button data-tab="powerups" class="tab">Power-ups</button>
+          </div>
+          <div id="shopItems" class="shop-items"></div>
+        </section>
+
+        <section class="card glass">
+          <h2>Achievements</h2>
+          <ul id="achievements" class="list"></ul>
+        </section>
+
+        <section class="card glass">
+          <h2>Your Top 5 · This Device</h2>
+          <ol id="leaderboard" class="list"></ol>
+        </section>
+
+        <section class="card glass">
+          <h2>Keep improving</h2>
+          <p>Levels track your progress. Speed increases during each run, so every new run starts at the same base difficulty. Shop upgrades are permanent and work from your next run.</p>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="consentModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+    <div class="modal-content glass">
+      <h3 id="noticeTitle">Your game progress</h3>
+      <p>Progress is saved in this browser when storage is available. This build has no advertising or analytics trackers. Clearing browser data removes your progress.</p>
+      <button id="consentBtn" class="btn primary">I Understand</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
