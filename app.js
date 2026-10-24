@@ -41,9 +41,9 @@ const shop = {
     { id: 'aurora', name: 'Aurora Sky', price: 420 }
   ],
   powerups: [
-    { id: 'shield', name: 'Shield Start', price: 180, description: 'Blocks one obstacle hit.' },
-    { id: 'doubleCoins', name: 'Double Coins', price: 260, description: '2x coin conversion for one run.' },
-    { id: 'slowTime', name: 'Slow Time', price: 320, description: 'Small global speed reduction.' }
+    { id: 'shield', name: 'Shield Start', price: 180, description: 'Permanent: blocks one hit each run.' },
+    { id: 'doubleCoins', name: 'Double Coins', price: 260, description: 'Permanent: doubles run coins.' },
+    { id: 'slowTime', name: 'Slow Time', price: 320, description: 'Permanent: reduces speed each run.' }
   ]
 };
 
@@ -72,25 +72,46 @@ const dom = {
   dailyText: document.getElementById('dailyText'),
   tabs: Array.from(document.querySelectorAll('.tab')),
   consentModal: document.getElementById('consentModal'),
-  consentBtn: document.getElementById('consentBtn')
+  consentBtn: document.getElementById('consentBtn'),
+  status: document.getElementById('runStatus'),
+  storageNotice: document.getElementById('storageNotice'),
+  soundBtn: document.getElementById('soundBtn')
 };
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let game = null;
 let activeTab = 'skins';
+let soundEnabled = false;
 
 function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return parsed ? { ...defaultState, ...parsed } : { ...defaultState };
+    const clean = JSON.parse(JSON.stringify(defaultState));
+    if (!parsed || typeof parsed !== 'object') return clean;
+    for (const key of ['bestScore', 'coins', 'totalRuns', 'xp']) {
+      if (Number.isSafeInteger(parsed[key]) && parsed[key] >= 0) clean[key] = key === 'xp' ? Math.min(parsed[key], 1000000) : parsed[key];
+    }
+    if (Number.isSafeInteger(parsed.level) && parsed.level >= 1 && parsed.level <= 10000) clean.level = parsed.level;
+    for (const key of ['unlockedSkins', 'unlockedBackgrounds', 'unlockedPowerups']) {
+      if (Array.isArray(parsed[key])) clean[key] = [...new Set([...clean[key], ...parsed[key].filter(v => typeof v === 'string')])];
+    }
+    if (clean.unlockedSkins.includes(parsed.selectedSkin)) clean.selectedSkin = parsed.selectedSkin;
+    if (clean.unlockedBackgrounds.includes(parsed.selectedBackground)) clean.selectedBackground = parsed.selectedBackground;
+    if (Array.isArray(parsed.leaderboard)) clean.leaderboard = parsed.leaderboard.filter(v => Number.isSafeInteger(v) && v >= 0).sort((a,b) => b-a).slice(0, 5);
+    if (typeof parsed.lastLoginDate === 'string') clean.lastLoginDate = parsed.lastLoginDate;
+    return clean;
   } catch {
-    return { ...defaultState };
+    return JSON.parse(JSON.stringify(defaultState));
   }
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    dom.storageNotice.textContent = 'Progress cannot be saved in this browser. You can keep playing this session.';
+  }
 }
 
 function getXpToNextLevel(level) {
@@ -216,7 +237,10 @@ function buyOrEquip(item, tab) {
   }
 
   if (tab === 'skins') state.selectedSkin = item.id;
-  if (tab === 'backgrounds') state.selectedBackground = item.id;
+  if (tab === 'backgrounds') {
+    state.selectedBackground = item.id;
+    applyBg();
+  }
 
   unlockAchievements();
   saveState();
@@ -263,6 +287,7 @@ function initGame() {
 
 function startRun() {
   if (!game) initGame();
+  if (game.running) return;
   game.running = true;
   game.paused = false;
   game.score = 0;
@@ -271,19 +296,26 @@ function startRun() {
   game.entities = [];
   game.playerLane = 0;
   game.combo = 1;
+  game.coinMultiplier = state.unlockedPowerups.includes('doubleCoins') ? 2 : 1;
   if (state.unlockedPowerups.includes('shield')) game.shieldUsed = true;
   else game.shieldUsed = false;
   if (state.unlockedPowerups.includes('slowTime')) game.speedFactor = 0.88;
   else game.speedFactor = 1;
+  dom.startBtn.disabled = true;
+  dom.pauseBtn.disabled = false;
+  dom.pauseBtn.textContent = 'Pause';
+  dom.status.textContent = 'Run started. Avoid pink obstacles; collect gold coins.';
+  syncHud(0);
   beep(420, 0.09);
 }
 
 function endRun() {
+  if (!game?.running) return;
   game.running = false;
   state.totalRuns += 1;
   const finalScore = Math.floor(game.score);
-  const coinMultiplier = state.unlockedPowerups.includes('doubleCoins') ? 2 : 1;
-  const coinsEarned = Math.max(1, Math.floor(finalScore * config.coinRatio * coinMultiplier));
+  const coinMultiplier = game.coinMultiplier;
+  const coinsEarned = Math.floor(finalScore * config.coinRatio * coinMultiplier);
   state.coins += coinsEarned;
   state.bestScore = Math.max(state.bestScore, finalScore);
   addXp(Math.floor(finalScore * 0.22));
@@ -291,7 +323,11 @@ function endRun() {
   state.leaderboard = state.leaderboard.sort((a, b) => b - a).slice(0, config.maxLeaderboard);
   unlockAchievements();
   saveState();
-  syncHud(0);
+  syncHud(finalScore);
+  dom.startBtn.disabled = false;
+  dom.startBtn.textContent = 'Play Again';
+  dom.pauseBtn.disabled = true;
+  dom.status.textContent = `Run complete: ${finalScore} points · +${coinsEarned} coins · +${Math.floor(finalScore * 0.22)} XP. Best: ${state.bestScore}.`;
   renderLeaderboard();
   renderShop();
   beep(300, 0.15);
@@ -317,10 +353,9 @@ function moveLane(dir) {
 }
 
 function currentSpeed() {
-  const levelBoost = 1 + (state.level - 1) * 0.06;
   const runtimeBoost = Math.min(2.2, 1 + game.time / 30);
   const dynamicBoost = 1 + Math.min(1.3, game.score / 1200);
-  return Math.min(config.speedCap, config.baseSpeed * levelBoost * runtimeBoost * dynamicBoost * game.speedFactor);
+  return Math.min(config.speedCap, config.baseSpeed * runtimeBoost * dynamicBoost * game.speedFactor);
 }
 
 function drawRoad() {
@@ -407,7 +442,7 @@ function update(dt) {
   game.time += dt;
   game.score += dt * config.scorePerSecond;
 
-  const spawnRate = Math.max(0.24, 0.85 - (state.level * 0.04) - (game.time * 0.02));
+  const spawnRate = Math.max(0.24, 0.85 - 0.04 - (game.time * 0.02));
   if (game.time - game.lastSpawn > spawnRate) {
     spawnEntity();
     game.lastSpawn = game.time;
@@ -416,6 +451,7 @@ function update(dt) {
   drawRoad();
   drawPlayer();
   drawEntities(dt);
+  if (!game.running) return;
   syncHud(game.score);
 }
 
@@ -434,18 +470,25 @@ function gameLoop(ts) {
 }
 
 function beep(freq, duration) {
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  if (!AudioCtx) return;
-  if (!beep.ctx) beep.ctx = new AudioCtx();
-  const osc = beep.ctx.createOscillator();
-  const gain = beep.ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.value = freq;
-  gain.gain.value = 0.04;
-  osc.connect(gain);
-  gain.connect(beep.ctx.destination);
-  osc.start();
-  osc.stop(beep.ctx.currentTime + duration);
+  if (!soundEnabled) return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!beep.ctx) beep.ctx = new AudioCtx();
+    const osc = beep.ctx.createOscillator();
+    const gain = beep.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.value = 0.04;
+    osc.connect(gain);
+    gain.connect(beep.ctx.destination);
+    osc.start();
+    osc.stop(beep.ctx.currentTime + duration);
+  } catch {
+    soundEnabled = false;
+    dom.soundBtn.textContent = 'Sound: Off';
+    dom.soundBtn.setAttribute('aria-pressed', 'false');
+  }
 }
 
 window.rewardedAdBridge = {
@@ -455,15 +498,33 @@ window.rewardedAdBridge = {
 };
 
 dom.startBtn.addEventListener('click', startRun);
-dom.pauseBtn.addEventListener('click', () => {
-  if (!game) return;
+function togglePause() {
+  if (!game?.running) return;
   game.paused = !game.paused;
+  dom.pauseBtn.textContent = game.paused ? 'Resume' : 'Pause';
+  dom.status.textContent = game.paused ? 'Paused. Press Resume when ready.' : 'Run resumed.';
+}
+dom.pauseBtn.disabled = true;
+dom.pauseBtn.addEventListener('click', togglePause);
+dom.soundBtn.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  dom.soundBtn.textContent = soundEnabled ? 'Sound: On' : 'Sound: Off';
+  dom.soundBtn.setAttribute('aria-pressed', String(soundEnabled));
+  beep(520, 0.08);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && game?.running && !game.paused) togglePause();
 });
 dom.leftBtn.addEventListener('click', () => moveLane(-1));
 dom.rightBtn.addEventListener('click', () => moveLane(1));
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft') moveLane(-1);
-  if (e.key === 'ArrowRight') moveLane(1);
+  if (e.target?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
+  if (e.key === ' ' && e.target?.matches?.('button, a')) return;
+  if (['ArrowLeft', 'ArrowRight', ' '].includes(e.key) && game?.running) e.preventDefault();
+  if (e.repeat) return;
+  if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') moveLane(-1);
+  if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') moveLane(1);
+  if (e.key === ' ') togglePause();
 });
 dom.dailyBtn.addEventListener('click', claimDailyReward);
 dom.tabs.forEach((tab) => {
@@ -475,15 +536,13 @@ dom.tabs.forEach((tab) => {
   });
 });
 
-if (localStorage.getItem(CONSENT_KEY) === '1') {
+let noticeSeen = false;
+try { noticeSeen = localStorage.getItem(CONSENT_KEY) === '1'; } catch {}
+dom.consentModal.classList.toggle('hidden', noticeSeen);
+dom.consentBtn.addEventListener('click', () => {
+  try { localStorage.setItem(CONSENT_KEY, '1'); } catch {}
   dom.consentModal.classList.add('hidden');
-} else {
-  dom.consentModal.classList.remove('hidden');
-  dom.consentBtn.addEventListener('click', () => {
-    localStorage.setItem(CONSENT_KEY, '1');
-    dom.consentModal.classList.add('hidden');
-  });
-}
+});
 
 applyBg();
 syncHud(0);

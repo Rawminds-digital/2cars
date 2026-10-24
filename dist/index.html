@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>2Cars Skill Arcade</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <meta name="description" content="A free two-lane reflex arcade. Dodge obstacles, collect coins, and beat your personal best. No signup required.">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -38,10 +36,14 @@
           <div class="progress"><div id="levelFill" class="fill"></div></div>
         </div>
 
+        <p class="instructions">Switch lanes with ← →, A / D, or the buttons below. Avoid pink triangles and collect gold squares. Space pauses.</p>
         <canvas id="gameCanvas" width="420" height="720" aria-label="2Cars game"></canvas>
 
+        <p id="storageNotice" role="status"></p>
+        <p id="runStatus" role="status" aria-live="polite">Ready for a run? Your best scores stay on this device.</p>
         <div class="controls">
           <button id="startBtn" class="btn primary">Start Run</button>
+          <button id="soundBtn" class="btn" aria-pressed="false">Sound: Off</button>
           <button id="pauseBtn" class="btn">Pause</button>
           <button id="leftBtn" class="btn touch">⬅ Left</button>
           <button id="rightBtn" class="btn touch">Right ➡</button>
@@ -71,22 +73,22 @@
         </section>
 
         <section class="card glass">
-          <h2>Leaderboard</h2>
+          <h2>Your Top 5 · This Device</h2>
           <ol id="leaderboard" class="list"></ol>
         </section>
 
         <section class="card glass">
-          <h2>Future Ads Hook</h2>
-          <p>Rewarded ads are planned. Integration can be plugged into <code>window.rewardedAdBridge</code>.</p>
+          <h2>Keep improving</h2>
+          <p>Levels track your progress. Speed increases during each run, so every new run starts at the same base difficulty. Shop upgrades are permanent and work from your next run.</p>
         </section>
       </aside>
     </main>
   </div>
 
-  <div id="consentModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div id="consentModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
     <div class="modal-content glass">
-      <h3>Data & Ad Consent</h3>
-      <p>We store game progress locally and may offer rewarded ads in future versions.</p>
+      <h3 id="noticeTitle">Your game progress</h3>
+      <p>Progress is saved in this browser when storage is available. This build has no advertising or analytics trackers. Clearing browser data removes your progress.</p>
       <button id="consentBtn" class="btn primary">I Understand</button>
     </div>
   </div>
@@ -94,3 +96,4 @@
   <script src="app.js"></script>
 </body>
 </html>
+
