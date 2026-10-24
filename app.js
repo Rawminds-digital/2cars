@@ -267,6 +267,7 @@ function startRun() {
   game.paused = false;
   game.score = 0;
   game.time = 0;
+  game.lastSpawn = 0;
   game.entities = [];
   game.playerLane = 0;
   game.combo = 1;
@@ -358,7 +359,7 @@ function drawEntities(dt) {
   const playerX = canvas.width * config.lanes[game.playerLane];
   const playerY = canvas.height - 80;
 
-  game.entities.forEach((entity) => {
+  for (const entity of game.entities) {
     entity.y += speed * dt;
     entity.spin += dt * 8;
     const x = canvas.width * config.lanes[entity.lane];
@@ -393,9 +394,10 @@ function drawEntities(dt) {
         beep(250, 0.08);
       } else {
         endRun();
+        return;
       }
     }
-  });
+  }
 
   game.entities = game.entities.filter((e) => e.y < canvas.height + 60);
 }
@@ -491,3 +493,4 @@ renderAchievements();
 renderLeaderboard();
 unlockAchievements();
 initGame();
+
